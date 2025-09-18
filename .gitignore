@@ -1,1 +1,5 @@
-nafa
+node_modules
+.env
+dist
+npm-debug.log*
+.DS_Store
