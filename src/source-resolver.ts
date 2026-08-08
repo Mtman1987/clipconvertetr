@@ -58,7 +58,7 @@ export async function resolveVideoSourceUrl(input: string): Promise<string> {
       waitUntil: 'domcontentloaded',
       timeout: RESOLVE_TIMEOUT_MS,
     });
-    await page.waitForTimeout(1_000).catch(() => undefined);
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
 
     const domCandidates = await page.evaluate(() => {
       const values: string[] = [];
