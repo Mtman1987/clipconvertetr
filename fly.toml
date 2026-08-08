@@ -1,0 +1,32 @@
+app = "dsh-clip-worker"
+primary_region = "ord"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  CLIP_WORKER_MAX_CONCURRENT_JOBS = "1"
+  CLIP_WORKER_MAX_INPUT_BYTES = "67108864"
+  CLIP_WORKER_MAX_OUTPUT_BYTES = "62914560"
+  CLIP_WORKER_BROWSER_TIMEOUT_MS = "25000"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "25s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
