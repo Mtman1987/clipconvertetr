@@ -67,8 +67,12 @@ function runFfmpeg(args: string[], timeoutMs: number): Promise<void> {
     });
     child.once('close', (code, signal) => {
       clearTimeout(timer);
-      if (code === 0) resolve();
-      else reject(new Error(`FFmpeg failed (${signal || code ?? 'unknown'}): ${stderr.trim().slice(-2_000)}`));
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      const outcome = signal || String(code ?? 'unknown');
+      reject(new Error(`FFmpeg failed (${outcome}): ${stderr.trim().slice(-2_000)}`));
     });
   });
 }
@@ -83,18 +87,19 @@ async function convertWithProfile(
   const timeoutMs = clampInteger(options.timeoutMs, 90_000, 10_000, 5 * 60_000);
   const duration = Number(options.durationSeconds);
   const filter = [
-    `fps=${profile.fps}`,
-    `scale='min(${profile.width},iw)':-2:flags=lanczos`,
-    'split[s0][s1]',
+    `[0:v]fps=${profile.fps},scale='min(${profile.width},iw)':-2:flags=lanczos,split[s0][s1]`,
     `[s0]palettegen=max_colors=${profile.colors}:stats_mode=diff[p]`,
     '[s1][p]paletteuse=dither=bayer:bayer_scale=3:diff_mode=rectangle',
-  ].join(',');
+  ].join(';');
+  const remoteInputOptions = /^https?:\/\//i.test(source)
+    ? ['-user_agent', process.env.CLIP_WORKER_USER_AGENT || 'dsh-clip-worker/1.0']
+    : [];
 
   const args = [
     '-hide_banner',
     '-loglevel', 'error',
     '-y',
-    '-user_agent', process.env.CLIP_WORKER_USER_AGENT || 'dsh-clip-worker/1.0',
+    ...remoteInputOptions,
     '-i', source,
     ...(Number.isFinite(duration) && duration > 0 ? ['-t', Math.min(duration, 60).toFixed(3)] : []),
     '-an',
