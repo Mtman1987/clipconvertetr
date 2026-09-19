@@ -51,6 +51,17 @@ function numberField(form: FormData, name: string, fallback: number, minimum: nu
   return Math.max(minimum, Math.min(maximum, parsed));
 }
 
+function booleanField(form: FormData, name: string, fallback = false): boolean {
+  const value = String(form.get(name) ?? '').trim().toLowerCase();
+  if (!value) return fallback;
+  return ['1', 'true', 'yes', 'on'].includes(value);
+}
+
+function chromaColorField(form: FormData): string {
+  const value = String(form.get('chromaKeyColor') || '0x00ff00').trim();
+  return /^0x[0-9a-f]{6}$/i.test(value) ? value : '0x00ff00';
+}
+
 function safeExtension(file: File): string {
   const fromName = extname(file.name || '').toLowerCase();
   if (SUPPORTED_VIDEO_EXTENSION.test(fromName)) return fromName;
@@ -127,6 +138,10 @@ async function handleConvert(request: IncomingMessage, response: ServerResponse)
       durationSeconds: numberField(form, 'durationSeconds', 15, 1, 60),
       maxOutputBytes: Math.min(MAX_OUTPUT_BYTES, numberField(form, 'maxOutputBytes', MAX_OUTPUT_BYTES, 1 * 1024 * 1024, MAX_OUTPUT_BYTES)),
       timeoutMs: numberField(form, 'timeoutMs', 90_000, 10_000, 5 * 60_000),
+      greenScreen: booleanField(form, 'greenScreen', false),
+      chromaKeyColor: chromaColorField(form),
+      chromaSimilarity: numberField(form, 'chromaSimilarity', 0.18, 0.01, 1),
+      chromaBlend: numberField(form, 'chromaBlend', 0.08, 0, 1),
     });
 
     const filenameStem = sourceLabel
