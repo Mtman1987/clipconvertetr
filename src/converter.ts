@@ -15,6 +15,10 @@ export interface GifConversionOptions {
   durationSeconds?: number;
   maxOutputBytes?: number;
   timeoutMs?: number;
+  greenScreen?: boolean;
+  chromaKeyColor?: string;
+  chromaSimilarity?: number;
+  chromaBlend?: number;
 }
 
 type ConversionProfile = {
@@ -86,10 +90,26 @@ async function convertWithProfile(
   const loop = clampInteger(options.loop, 0, 0, 65_535);
   const timeoutMs = clampInteger(options.timeoutMs, 90_000, 10_000, 5 * 60_000);
   const duration = Number(options.durationSeconds);
+  const greenScreen = Boolean(options.greenScreen);
+  const chromaKeyColor = /^0x[0-9a-f]{6}$/i.test(String(options.chromaKeyColor || ''))
+    ? String(options.chromaKeyColor)
+    : '0x00ff00';
+  const chromaSimilarity = Math.max(0.01, Math.min(1, Number(options.chromaSimilarity) || 0.18));
+  const chromaBlend = Math.max(0, Math.min(1, Number(options.chromaBlend) || 0.08));
+  const sourceFilters = [
+    `fps=${profile.fps}`,
+    ...(greenScreen ? [`chromakey=${chromaKeyColor}:${chromaSimilarity.toFixed(3)}:${chromaBlend.toFixed(3)}`] : []),
+    `scale='min(${profile.width},iw)':-2:flags=lanczos`,
+    ...(greenScreen ? ['format=rgba'] : []),
+  ].join(',');
   const filter = [
-    `[0:v]fps=${profile.fps},scale='min(${profile.width},iw)':-2:flags=lanczos,split[s0][s1]`,
-    `[s0]palettegen=max_colors=${profile.colors}:stats_mode=diff[p]`,
-    '[s1][p]paletteuse=dither=bayer:bayer_scale=3:diff_mode=rectangle',
+    `[0:v]${sourceFilters},split[s0][s1]`,
+    greenScreen
+      ? `[s0]palettegen=max_colors=${Math.min(255, profile.colors)}:reserve_transparent=1:transparency_color=0x00000000:stats_mode=diff[p]`
+      : `[s0]palettegen=max_colors=${profile.colors}:stats_mode=diff[p]`,
+    greenScreen
+      ? '[s1][p]paletteuse=dither=bayer:bayer_scale=3:diff_mode=rectangle:alpha_threshold=128'
+      : '[s1][p]paletteuse=dither=bayer:bayer_scale=3:diff_mode=rectangle',
   ].join(';');
   const remoteInputOptions = /^https?:\/\//i.test(source)
     ? ['-user_agent', process.env.CLIP_WORKER_USER_AGENT || 'dsh-clip-worker/1.0']
